@@ -108,3 +108,4 @@ void Juego_SetJugadores(uint8_t n)       { num_jugadores = n; }
 void Juego_SetDificultad(uint8_t d)      { dificultad = d; }
 
 EstadoJuego_t Juego_GetEstado(void)      { return estado_juego; }
+ModoJuego_t Juego_GetModo(void)      { return modo; }
