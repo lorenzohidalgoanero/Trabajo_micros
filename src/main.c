@@ -79,6 +79,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
   Juego_BotonPulsado(jugador, tiempo_ms);
 
+  if (boton_pulsado == 1) { //Antes estaba a 0, ns si afectará mucho al código
+ 	 resultado_final = tiempo_ms; // Captura el tiempo actual inmediatamente
+ 	 //boton_pulsado = 1;           // Bloquea futuras entradas
+ 	 HAL_TIM_Base_Stop_IT(&htim2); // Detiene el cronómetro
+  }
+
   __HAL_TIM_SET_AUTORELOAD(&htim4, 1000);
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 500);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
