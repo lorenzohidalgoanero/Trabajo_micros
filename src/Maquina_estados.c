@@ -7,6 +7,8 @@
 
 #include "Maquina_estados.h"
 #include <stdlib.h>
+#include<stdint.h>
+
 
 /* ====== Handles externos ====== */
 extern TIM_HandleTypeDef htim2;
@@ -19,7 +21,7 @@ static uint8_t ronda_actual;
 static uint16_t puntos_j1, puntos_j2;
 static uint8_t ganador;
 static uint8_t boton_pulsado;
-static uint32_t tiempo_ms;
+//static uint32_t tiempo_ms;
 static uint32_t resultado_final;
 
 static uint8_t dificultad;
@@ -70,9 +72,7 @@ void Juego_Run(void)
 
             switch (modo)
             {
-                case MODO_2_SOLO_PUNTOS:
-                    puntos_j1 += calcular_puntos(resultado_final);
-                    break;
+
                 case MODO_3_DUO_PUNTOS:
                     if (ganador == 1) puntos_j1 += calcular_puntos(resultado_final);
                     else if (ganador == 2) puntos_j2 += calcular_puntos(resultado_final);
@@ -109,3 +109,4 @@ void Juego_SetDificultad(uint8_t d)      { dificultad = d; }
 
 EstadoJuego_t Juego_GetEstado(void)      { return estado_juego; }
 ModoJuego_t Juego_GetModo(void)      { return modo; }
+
