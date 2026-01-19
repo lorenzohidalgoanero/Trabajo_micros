@@ -1,102 +1,52 @@
-/*
- * Cálculo_puntos.c
- *
- *  Created on: Dec 31, 2025
- *      Author: LENOVO
- */
-
-
 #include "stm32f4xx_hal.h"
 #include "Calculo_puntos.h"
 #include <stdint.h>
 
+/* Usamos extern para que sean las mismas variables que en Maquina_estados.c */
+extern uint32_t puntos_jugador_1;
+extern uint32_t puntos_jugador_2;
+extern uint8_t ganador; // Recibido desde Maquina_estados o Captura_boton
 
-/* Variables */
-uint32_t tiempo_jugador_1;
-uint32_t tiempo_jugador_2;
-uint32_t puntos_jugador_1;
-uint32_t puntos_jugador_2;
-uint8_t ganador;
-uint8_t punto_ganado;
-volatile uint32_t tiempo_1;
-volatile uint32_t tiempo_2;
-
-
-
-
-void Calculo_Puntos(uint32_t tiempo_final, EstadoJuego_t estado_actual, ModoJuego_t modo_actual)
+static uint16_t calcular_puntos_tiempo(uint32_t tiempo)
 {
+    if (tiempo < 200) return 100;
+    if (tiempo < 400) return 75;
+    if (tiempo < 600) return 50;
+    if (tiempo < 1000) return 25;
+    return 10;
+}
 
+/* Modificamos la función para que reciba el ID del ganador directamente */
+/* En el archivo Calculo_puntos.h */
+/* Elimina el punto y coma que estaba después de 'jugador_ganador)' */
+void Calculo_Puntos(uint32_t tiempo_final, ModoJuego_t modo_actual, uint8_t jugador_ganador)
+{
+    switch (modo_actual)
+    {
+        case MODO_1_SOLO_TIEMPO:
+            // En modo individual, siempre sumamos al jugador 1
+            puntos_jugador_1 += calcular_puntos_tiempo(tiempo_final);
+            break;
 
-	switch (modo_actual)
-	{
-			case MODO_1_SOLO_TIEMPO:
-	            	/* en ronda normal, guardamos el tiempo del jugador activo */
-	            	if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_SET)
-	            	{
-	            		tiempo_jugador_1 = tiempo_final;
-	            	}
-	            	else
-	            	{
-	            		tiempo_jugador_2 = tiempo_final;
-	            	}
-	            	break;
+        case MODO_4_DUO_REFLEJOS:
+            // El que pulsó primero gana 1 punto fijo
+            if (jugador_ganador == 1) {
+                puntos_jugador_1++;
+            } else if (jugador_ganador == 2) {
+                puntos_jugador_2++;
+            }
+            break;
 
+        case MODO_3_DUO_PUNTOS:
+            // Se suman puntos según la rapidez a quien haya ganado la pulsación
+            if (jugador_ganador == 1) {
+                puntos_jugador_1 += calcular_puntos_tiempo(tiempo_final);
+            } else if (jugador_ganador == 2) {
+                puntos_jugador_2 += calcular_puntos_tiempo(tiempo_final);
+            }
+            break;
 
-	        case MODO_4_DUO_REFLEJOS:
-	        	switch (estado_actual)
-	        	    {
-	        	        case ST_JUEGO_RONDA:
-	        	            /* en ronda normal, guardamos el tiempo del jugador activo */
-	        	            if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_SET)
-	        	            {
-	        	                tiempo_jugador_1 = tiempo_1;
-	        	                break;
-	        	            }
-	        	            if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_SET)
-	        	            {
-	        	                tiempo_jugador_2 = tiempo_2;
-	        	            	break;
-	        	            }
-
-	        	            if (tiempo_1 <= tiempo_2 ) //Si es más rápido el jugador 1 que el 2
-	        	            {
-	        	                tiempo_jugador_1 = tiempo_final;
-	        	                puntos_jugador_1 = puntos_jugador_1 +1;
-	        	            }
-
-	        	            else						 //si es más rápido el jugador 2 que el 1
-	        	            {
-	        	            	tiempo_jugador_2 = tiempo_final;
-	        	            	puntos_jugador_2 = puntos_jugador_2 + 1;
-	        	            }
-	        	            break;
-
-	        	    }
-	            break;
-
-	        case MODO_3_DUO_PUNTOS:
-	        	switch (estado_actual)
-	        	{
-	        	case ST_JUEGO_RONDA:
-	        		punto_ganado=0;
-	        		ganador=0;
-	        		        /* en ronda normal, guardamos el tiempo del jugador activo */
-	        		        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_SET && punto_ganado==0)
-	        		        {
-	        		        	puntos_jugador_1 = puntos_jugador_1 + 1;
-	        		        	punto_ganado=1;
-	        		        	break;
-	        		        }
-	        		        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_SET && punto_ganado==0)
-	        		        {
-	        		        	puntos_jugador_2 = puntos_jugador_2 + 1;
-	        		        	punto_ganado=1;
-	        		        	break;
-	        		        }
-	        	}
-	        default:
-	            break;
-	}
-
+        default:
+            break;
+    }
 }
