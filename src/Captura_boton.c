@@ -8,6 +8,8 @@
 
 #include "Captura_Boton.h"
 #include <stdlib.h>
+#include<stdint.h>
+#include "stm32f4xx_hal.h"
 
 /* Handles externos */
 extern TIM_HandleTypeDef htim2;
@@ -16,10 +18,10 @@ extern ADC_HandleTypeDef hadc1;
 
 /* Variables externas (tal como las usabas) */
 extern volatile uint32_t tiempo_ms;
-extern volatile uint8_t boton_pulsado;
-extern volatile uint32_t resultado_final;
+ volatile uint8_t boton_pulsado=0;
+ volatile uint32_t resultado_final=0;
 extern volatile uint16_t adc_ruido;
-extern uint8_t modo_actual;
+ uint8_t modo_actual;
 
 /* ===== INIT ===== */
 void Captura_Boton_Init(void)
@@ -40,7 +42,7 @@ void Captura_Boton_Run(void)
     resultado_final = 0;
 
     /* 2. Obtener Azar */
-    uint32_t tiempo_espera_azar = (rand() % 3001) + 1000;
+    uint32_t tiempo_espera_azar = (rand() % 2001) + 2000;
 
     /* 3. Espera */
     uint32_t tiempo_inicio_espera = HAL_GetTick();
@@ -48,10 +50,6 @@ void Captura_Boton_Run(void)
     /* 4. Inicio ronda */
     tiempo_ms = 0;
 
-    if (modo_actual == MODO_INDIVIDUAL)
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
-    else
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1 | GPIO_PIN_2, GPIO_PIN_SET);
 
     __HAL_TIM_SET_COUNTER(&htim2, 0);
     HAL_TIM_Base_Start_IT(&htim2);
@@ -91,5 +89,6 @@ void Captura_Boton_Run(void)
     HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
 
     if (resultado_final == 0)
-        resultado_final = tiempo_ms;
+        resultado_final = 11111;
 }
+
