@@ -69,27 +69,16 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
 }
 
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-  uint8_t jugador = 0;
+    uint8_t jugador = 0;
 
-  if (GPIO_Pin == GPIO_PIN_10) jugador = 1;
-  else if (GPIO_Pin == GPIO_PIN_11) jugador = 2;
-  else return;
+    if (GPIO_Pin == GPIO_PIN_10) jugador = 1;
+    else if (GPIO_Pin == GPIO_PIN_11) jugador = 2;
+    else return;
 
-  Juego_BotonPulsado(jugador, tiempo_ms);
-
-  if (boton_pulsado == 1) { //Antes estaba a 0, ns si afectará mucho al código
- 	 resultado_final = tiempo_ms; // Captura el tiempo actual inmediatamente
- 	 //boton_pulsado = 1;           // Bloquea futuras entradas
- 	 HAL_TIM_Base_Stop_IT(&htim2); // Detiene el cronómetro
-  }
-
-  __HAL_TIM_SET_AUTORELOAD(&htim4, 1000);
-  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 500);
-  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
-
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1 | GPIO_PIN_2, GPIO_PIN_RESET);
+    Juego_BotonPulsado(jugador, tiempo_ms);
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
@@ -272,3 +261,4 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+
