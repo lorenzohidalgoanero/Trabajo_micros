@@ -16,13 +16,12 @@ typedef enum {
     ST_JUEGO_INICIO,
     ST_JUEGO_TIEMPO_ESPERA,
     ST_JUEGO_RONDA,
-    ST_JUEGO_EMPATE,
     ST_JUEGO_FIN
 } EstadoJuego_t;
 
 typedef enum {
     MODO_1_SOLO_TIEMPO,
-    MODO_2_SOLO_PUNTOS,
+    //MODO_2_SOLO_PUNTOS,
     MODO_3_DUO_PUNTOS,
     MODO_4_DUO_REFLEJOS
 } ModoJuego_t;
