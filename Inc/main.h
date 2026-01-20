@@ -31,7 +31,8 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdlib.h>
+extern volatile uint32_t tiempo_ms;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
