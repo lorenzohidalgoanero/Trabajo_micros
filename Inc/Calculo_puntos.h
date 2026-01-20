@@ -18,8 +18,10 @@ extern uint32_t tiempo_jugador_2;
 
 ModoJuego_t Juego_GetModo(void);
 EstadoJuego_t Juego_GetEstado(void);
+uint32_t GetTiempoReaccion(void);
 
 /* Función principal del bloque */
-void Calculo_Puntos(uint32_t tiempo_final, EstadoJuego_t estado_actual, ModoJuego_t modo_actual);
+void Calculo_Puntos(uint32_t tiempo_final, ModoJuego_t modo_actual, uint8_t jugador_ganador);
 
 #endif /* INC_CALCULO_PUNTOS_H_ */
+
