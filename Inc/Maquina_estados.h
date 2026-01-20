@@ -40,5 +40,8 @@ void Juego_BotonPulsado(uint8_t jugador, uint32_t tiempo);
 
 /* Estado */
 EstadoJuego_t Juego_GetEstado(void);
+uint32_t GetTiempoReaccion(void);
+
 
 #endif
+
