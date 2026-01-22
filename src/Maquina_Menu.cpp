@@ -31,10 +31,11 @@ void Maquina_Menu::actualizar(const Entradas& inputs) { //estos inputs estan en 
 
             //si se pulsa el boton cambiamos de estado
             if (inputs.btn_PA0_Click || inputs.btn_PA0_Hold) {
-                _selJugadores = OpcionJugadores::UN_JUGADOR;
+                _selJugadores = OpcionJugadores::FANTASMA_2;
                 _estadoActual = EstadoMenu::SEL_JUGADORES;
                 _pantalla->rellenarPantalla(0x0005);
                 dibujarMenuJugadores();
+
             }
             break;
 
@@ -42,27 +43,45 @@ void Maquina_Menu::actualizar(const Entradas& inputs) { //estos inputs estan en 
             if (inputs.btn_PA0_Click) {
                 // logica de alternancia simple
                 if (_selJugadores == OpcionJugadores::UN_JUGADOR)
+                    _selJugadores = OpcionJugadores::FANTASMA_1;
+
+                else if (_selJugadores == OpcionJugadores::FANTASMA_1)
                     _selJugadores = OpcionJugadores::DOS_JUGADORES;
-                else
+
+                else if (_selJugadores == OpcionJugadores::DOS_JUGADORES)
+                    _selJugadores = OpcionJugadores::FANTASMA_2;
+
+                else if (_selJugadores == OpcionJugadores::FANTASMA_2)
                     _selJugadores = OpcionJugadores::UN_JUGADOR;
+
 
                 dibujarMenuJugadores();
             }
 
             if (inputs.btn_PA0_Hold) { //si mantenemos el boton cambiamos de estado
                 _selModo = OpcionModo::CUENTA_ATRAS; // dejamos seleccionado la primera opcion
+
                 _estadoActual = EstadoMenu::SEL_MODO;
                 _pantalla->rellenarPantalla(0x0005);
                 dibujarMenuModo();
+                const_cast<Entradas&>(inputs).btn_PA0_Hold = false;
             }
             break;
 
         case EstadoMenu::SEL_MODO:
             if (inputs.btn_PA0_Click) { //si le damos click cambiamos de seleccion
                 if (_selModo == OpcionModo::CUENTA_ATRAS)
+                    _selModo = OpcionModo::FANTASMA_3;
+
+                else if (_selModo == OpcionModo::FANTASMA_3)
                     _selModo = OpcionModo::MEJOR_RESULTADO;
-                else
+
+                else if (_selModo == OpcionModo::MEJOR_RESULTADO)
+                    _selModo = OpcionModo::FANTASMA_4;
+
+                else if (_selModo == OpcionModo::FANTASMA_4)
                     _selModo = OpcionModo::CUENTA_ATRAS;
+
 
                 dibujarMenuModo();
             }
@@ -72,16 +91,27 @@ void Maquina_Menu::actualizar(const Entradas& inputs) { //estos inputs estan en 
                 _estadoActual = EstadoMenu::SEL_DIFICULTAD;//cambiamos de estado
                 _pantalla->rellenarPantalla(0x0005);
                 dibujarMenuDificultad();
+                const_cast<Entradas&>(inputs).btn_PA0_Hold = false;
             }
             break;
 
         case EstadoMenu::SEL_DIFICULTAD:
             if (inputs.btn_PA0_Click) {
                 if (_selDificultad == OpcionDificultad::FACIL)
+                    _selDificultad = OpcionDificultad::FANTASMA_5;
+                else if (_selDificultad == OpcionDificultad::FANTASMA_5)
                     _selDificultad = OpcionDificultad::MEDIO;
+
                 else if (_selDificultad == OpcionDificultad::MEDIO)
+                    _selDificultad = OpcionDificultad::FANTASMA_6;
+
+                else if (_selDificultad == OpcionDificultad::FANTASMA_6)
                     _selDificultad = OpcionDificultad::DIFICIL;
-                else
+
+                else if (_selDificultad == OpcionDificultad::DIFICIL)
+                    _selDificultad = OpcionDificultad::FANTASMA_7;
+
+                else if (_selDificultad == OpcionDificultad::FANTASMA_7)
                     _selDificultad = OpcionDificultad::FACIL;
 
                 dibujarMenuDificultad();
@@ -94,6 +124,8 @@ void Maquina_Menu::actualizar(const Entradas& inputs) { //estos inputs estan en 
 
                 _juego->configurar(_selJugadores, _selModo, _selDificultad); // configuramos el juego dentro de SU MAQUINA DE ESTADOS local
                 _juego->resetearJuegoCompleto();
+
+                const_cast<Entradas&>(inputs).btn_PA0_Hold = false;
             }
             break;
 
