@@ -1,66 +1,146 @@
-/*
-* Captura_boton.c
-*
-*  Created on: Dec 31, 2025
-*      Author: LENOVO
-*/
-#include "Captura_Boton.h"
+
+#include "Captura_boton.h"
+#include "main.h"
 #include <stdlib.h>
-#include<stdint.h>
+#include <stdint.h>
 #include "stm32f4xx_hal.h"
-#include "Maquina_estados.h"
-/* Handles externos */
-extern TIM_HandleTypeDef htim2;
-extern TIM_HandleTypeDef htim4;
-extern ADC_HandleTypeDef hadc1;
-/* Variables externas (tal como las usabas) */
-extern volatile uint32_t tiempo_ms;
-/*volatile*/ extern uint8_t boton_pulsado/*=0*/;
-/*volatile*/ extern uint32_t resultado_final/*=0*/;
-extern volatile uint16_t adc_ruido;
-extern uint8_t ganador;
-extern ModoJuego_t modo;
-/* ===== INIT ===== */
-void Captura_Boton_Init(void)
-{
-   HAL_ADC_Start_IT(&hadc1);
-   HAL_Delay(100);
-   srand(adc_ruido);
+
+// ESTO HAY QUE METERLO Y NOSE MUY BIEN PORQUE
+extern "C" {
+    extern TIM_HandleTypeDef htim2;
+    extern ADC_HandleTypeDef hadc1;
 }
-/* ===== RUN ===== */
-void Captura_Boton_Run(void)
-{
-   extern EstadoJuego_t estado_juego;
-   // Solo permitimos capturar si estamos en RONDA y el botón no ha sido procesado aún
-   if (estado_juego == ST_JUEGO_RONDA && boton_pulsado == 0)
-   {
-	   HAL_TIM_Base_Start_IT(&htim2);
-       // Si se detecta pulsación en PA0
-       if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)  //BOTÓN JUGADOR 1
-       {
-           // Captura inmediata para máxima precisión
-           resultado_final = tiempo_ms;
-           boton_pulsado = 1;
-           ganador = 1;
-           // Detenemos el hardware de conteo
-           HAL_TIM_Base_Stop_IT(&htim2);
-           // Debouncing mínimo (para la realidad física del botón)
-           HAL_Delay(50);
-           // Feedback: Encendemos un LED que indique "pulsación detectada"
-           HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
-       }
-       // --- COMPROBACIÓN JUGADOR 2 (PA10) ---
-          else if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) == GPIO_PIN_SET)   //BOTÓN JUGADOR 2
-          {
-                   resultado_final = tiempo_ms;
-                   boton_pulsado = 1;
-                   ganador = 2; // Registra que ganó el J2
-                   // Detenemos el hardware de conteo
-                   HAL_TIM_Base_Stop_IT(&htim2);
-                   // Feedback visual: puedes encender otro LED (ej. PA1 o PA2)
-                   // para saber que el J2 fue el más rápido
-                   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
-                   HAL_Delay(50); // Debouncing
-             }
-   }
+
+// esto se actualiza con los callbackks
+volatile uint32_t tiempo_ms = 0;
+volatile uint16_t adc_ruido = 0;
+
+static volatile uint8_t boton_pulsado = 0;
+static volatile uint32_t resultado_final = 0;
+static uint8_t ganador_local = 0;
+
+
+extern volatile bool irq_pa0_pressed; 
+// externs para traerlo del main
+static bool temporizador_activo = false;
+
+extern "C" void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+    if (htim->Instance == TIM2) {
+        tiempo_ms++;
+    }
 }
+
+
+extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
+    if (hadc->Instance == ADC1) {
+        adc_ruido = static_cast<uint16_t>(HAL_ADC_GetValue(hadc));
+    }
+}
+
+// inicializa la captura del botón, arranca el ADC en modo interrupción y
+// configura la semilla del generador aleatorio con el ruido inicial
+void Captura_Boton_Init(void) {
+    HAL_ADC_Start_IT(&hadc1);
+    HAL_Delay(10);
+    srand(adc_ruido);
+    boton_pulsado = 0;
+    resultado_final = 0;
+    ganador_local = 0;
+    temporizador_activo = false;
+    tiempo_ms = 0;
+}
+
+
+
+
+void Captura_Boton_Run(void) {
+    if (!temporizador_activo) {
+        // solo arranca si el boton está SUELTO para evitar trampas
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET) return;
+
+        tiempo_ms = 0;
+        __HAL_TIM_SET_COUNTER(&htim2, 0);
+        HAL_TIM_Base_Start_IT(&htim2);
+        temporizador_activo = true;
+        boton_pulsado = 0;
+        resultado_final = 0;
+        irq_pa0_pressed = false; // limpiamos posibles señales residuales del boton
+    }
+
+    if (boton_pulsado == 0) {
+        // judador1 prioritario, detectamos si ocurrio en la ronda
+        if (irq_pa0_pressed) {
+            resultado_final = tiempo_ms;
+            boton_pulsado = 1;
+            ganador_local = 1;
+            HAL_TIM_Base_Stop_IT(&htim2);
+            temporizador_activo = false;
+            irq_pa0_pressed = false;
+            HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+        }
+        // jugador2, polling  en PA10
+        else if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) == GPIO_PIN_SET) {
+            resultado_final = tiempo_ms;
+            boton_pulsado = 1;
+            ganador_local = 2;
+            HAL_TIM_Base_Stop_IT(&htim2);
+            temporizador_activo = false;
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
+        }
+    }
+}
+
+
+/*void Captura_Boton_Run(void) {
+ *
+ * FUNCIONA PERO PUEDO MEJORARLO
+ *
+    if (!temporizador_activo) {
+        // SEGURIDAD: Si al empezar la ronda el botón ya está pulsado,
+        // ignoramos esa pulsación (el usuario está haciendo trampa o no ha soltado).
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET) {
+            return;
+        }
+
+        tiempo_ms = 0;
+        __HAL_TIM_SET_COUNTER(&htim2, 0);
+        HAL_TIM_Base_Start_IT(&htim2);
+        temporizador_activo = true;
+        boton_pulsado = 0;
+        resultado_final = 0;
+    }
+
+    if (boton_pulsado == 0) {
+        // J1
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET) {
+            resultado_final = tiempo_ms;
+            boton_pulsado = 1;
+            ganador_local = 1;
+            HAL_TIM_Base_Stop_IT(&htim2);
+            temporizador_activo = false;
+            HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+        }
+        // J2
+        else if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) == GPIO_PIN_SET) {
+            resultado_final = tiempo_ms;
+            boton_pulsado = 1;
+            ganador_local = 2;
+            HAL_TIM_Base_Stop_IT(&htim2);
+            temporizador_activo = false;
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
+        }
+    }
+}
+*/
+
+
+// funciones auxiliares para consultar el resultado de la captura
+// devuelven el tiempo registrado y el jugador que gano
+uint32_t Captura_GetTiempoFinal() {
+    return resultado_final;
+}
+
+uint8_t Captura_GetGanador() {
+    return ganador_local;
+}
+
