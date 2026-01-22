@@ -1,96 +1,182 @@
 #include "Logica_Juego.h"
-#include <stdlib.h> 
-#include <stdio.h>  
+#include <stdlib.h>
+#include <cstdio>
 
-// CODIGO EJEMPLO PARA LUEGO EL MERGE, NO ES PRODUCTO FINAL DEL JUEGO
 
+
+// tiempo_ms ya no se usa para medir el tiempo de reaccion
+// ahora se usa hal_gettick que devuelve los milisegundos desde que arranca el sistema
+extern volatile uint16_t adc_ruido;
 
 Logica_Juego::Logica_Juego(Estilo_Pantalla* pantalla)
-   : _pantalla(pantalla) {
-   resetearJuegoCompleto();
+    : _pantalla(pantalla),
+      _dibujante(pantalla) {
+    // inicializamos la maquina de estados y la puntuacion
+    resetearJuegoCompleto();
 }
-void Logica_Juego::configurar(OpcionJugadores jug, OpcionModo modo, OpcionDificultad dif) {
-   _confJugadores = jug;
-   _confModo = modo;
-   _confDificultad = dif;
-}
-void Logica_Juego::resetearJuegoCompleto() {
-   _estadoActual = EstadoJuego::INIT_LOCAL;
-   _redibujar = true;
-   _tickInicio = 0;
-   _tiempoReaccion = 0;
-}
-uint32_t Logica_Juego::obtenerTiempoEspera() {
-   uint32_t base = 2000;
-   if (_confDificultad == OpcionDificultad::DIFICIL) base = 500;
-   else if (_confDificultad == OpcionDificultad::FACIL) base = 4000;
-   return base + (HAL_GetTick() % 2000);
-}
+
 void Logica_Juego::actualizar(const Entradas& inputs) {
-   uint32_t ahora = HAL_GetTick();
-   // Nota: Como en Main.c distinguimos Click de Hold,
-   // inputs.btn_PA0_Click SOLO será true si fue una pulsación CORTA.
-   switch (_estadoActual) {
-       case EstadoJuego::INIT_LOCAL:
-           if (_redibujar) {
-               _pantalla->rellenarPantalla(0x0000);
-               _pantalla->Escribir(40, 100, "LISTO?", 0xFFFF, 0, 0);
-               _redibujar = false;
-           }
-           // Click corto para empezar
-           if (inputs.btn_PA0_Click) {
-               _estadoActual = EstadoJuego::ESPERANDO_AZAR;
-               _tiempoAleatorio = obtenerTiempoEspera();
-               _tickInicio = ahora;
-               _redibujar = true;
-           }
-           break;
-       case EstadoJuego::ESPERANDO_AZAR:
-            if (_redibujar) {
-               _pantalla->rellenarPantalla(0x0000);
-               _pantalla->Escribir(80, 100, "...", 0xFFFF, 0, 0);
-               _redibujar = false;
-           }
-           // TRAMPA: Si hace click antes de tiempo
-           if (inputs.btn_PA0_Click) {
-                _pantalla->Escribir(20, 40, "FALSO!", 0xF800, 0, 0);
-                HAL_Delay(1000);
-                resetearJuegoCompleto();
-                return;
-           }
-           if ((ahora - _tickInicio) >= _tiempoAleatorio) {
-               _estadoActual = EstadoJuego::ACCION;
-               _tickInicio = ahora;
-               _redibujar = true;
-           }
-           break;
-       case EstadoJuego::ACCION:
-           if (_redibujar) {
-               _pantalla->rellenarPantalla(0x07E0); // VERDE
-               _redibujar = false;
-           }
-           // REACCIÓN VÁLIDA
-           if (inputs.btn_PA0_Click) {
-               _tiempoReaccion = ahora - _tickInicio;
-               _estadoActual = EstadoJuego::RESULTADO;
-               _redibujar = true;
-           }
-           break;
-       case EstadoJuego::RESULTADO:
-           if (_redibujar) {
-                _pantalla->rellenarPantalla(0x0000);
-                char buf[20];
-                sprintf(buf, "%lu ms", _tiempoReaccion);
-                _pantalla->Escribir(20, 100, buf, 0xFFFF, 0, 0);
-                _pantalla->Escribir(10, 200, "Click: Otra vez", 0xAAAA, 0,0);
-                _pantalla->Escribir(10, 220, "Hold: Salir", 0xAAAA, 0,0);
-                _redibujar = false;
-           }
-           if (inputs.btn_PA0_Click) {
-               resetearJuegoCompleto();
-           }
-           break;
-       case EstadoJuego::GAMEOVER:
-           break;
-   }
+    uint32_t Tiempo = HAL_GetTick();
+
+    // 1 despertar o reinicio inicial
+	if (_estadoActual == EstadoJuego::ST_JUEGO_APAGADO) {
+		_puntuacion.resetear();
+		_estadoActual = EstadoJuego::ST_JUEGO_INICIO;
+		_redibujar = true;
+		_solicitudSalidaMenu = false, // aseguramos que arranca limpio
+		return;
+	}
+
+	// el hold global reinicia el juego en cualquier ronda
+	// y la restriccion no actua si estamos en el menu final
+	if (inputs.btn_PA0_Hold && _estadoActual != EstadoJuego::ST_JUEGO_FIN) {
+		_puntuacion.resetear();
+		_estadoActual = EstadoJuego::ST_JUEGO_INICIO;
+		_redibujar = true;
+		HAL_GPIO_WritePin(LED_AZUL_GPIO_Port, LED_AZUL_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_RESET);
+		return, // salimos para no seguir procesando estados
+	}
+    // este hold esta fuera del switch porque quiero poder reiniciar en cualquier ronda
+    // en el menu final en cambio el hold sirve para salir a la consola
+
+
+
+    // 2 maquina de estados principal
+    switch (_estadoActual) {
+
+        case EstadoJuego::ST_JUEGO_INICIO:
+            if (inputs.btn_PA0_Click) {
+            	_solicitudSalidaMenu = false;
+                _tickInicio = Tiempo;
+                _estadoActual = EstadoJuego::ST_TIEMPO_PREPARACION;
+                _redibujar = true, // fuerza el dibujo del fondo azul
+                HAL_GPIO_WritePin(LED_AZUL_GPIO_Port, LED_AZUL_Pin, GPIO_PIN_SET);
+            }
+            break;
+
+        case EstadoJuego::ST_TIEMPO_PREPARACION:
+            if (Tiempo - _tickInicio >= 1500) {
+                _tiempoAleatorio = obtenerTiempoEspera();
+                _tickInicio = Tiempo;
+                _estadoActual = EstadoJuego::ST_TIEMPO_DISPARO;
+                _redibujar = true, // pasamos a fondo negro
+                HAL_GPIO_WritePin(LED_AZUL_GPIO_Port, LED_AZUL_Pin, GPIO_PIN_RESET);
+            }
+            break;
+
+        case EstadoJuego::ST_TIEMPO_DISPARO:
+            if (Tiempo - _tickInicio >= _tiempoAleatorio) {
+                _tickInicioDisparo = Tiempo;
+                _estadoActual = EstadoJuego::ST_JUEGO_RONDA;
+                _redibujar = true, // fondo rojo y aviso visual
+                HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_SET);
+            }
+            break;
+
+        case EstadoJuego::ST_JUEGO_RONDA:
+            if (inputs.btn_PA0_Click) {
+                _tiempoReaccion = Tiempo - _tickInicioDisparo;
+                _puntuacion.registrarRonda(_tiempoReaccion, _confModo, 1);
+                _tickInicio = Tiempo;
+                _estadoActual = EstadoJuego::ST_MOSTRAR_RESULTADO_RONDA;
+                _redibujar = true;
+                HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_RESET);
+            }
+            break;
+
+        case EstadoJuego::ST_MOSTRAR_RESULTADO_RONDA:
+            // dejamos el resultado mas tiempo para que se vea bien
+            if (Tiempo - _tickInicio >= 3000) {
+                _redibujar = true;
+                if (_puntuacion.getRondaActual() > 3) {
+                    _estadoActual = EstadoJuego::ST_JUEGO_FIN;
+                } else {
+                    _estadoActual = EstadoJuego::ST_JUEGO_INICIO;
+                }
+            }
+            break;
+
+        case EstadoJuego::ST_JUEGO_FIN:
+        	if (inputs.btn_PA0_Hold) {
+        	        resetearJuegoCompleto();
+        	        _solicitudSalidaMenu = true;
+        	        _redibujar = true;
+        	    }
+        	    else if (inputs.btn_PA0_Click) {
+        	        _puntuacion.resetear();
+        	        _estadoActual = EstadoJuego::ST_JUEGO_INICIO;
+        	        _solicitudSalidaMenu = false;
+        	        _redibujar = true;
+        	    }
+            break;
+    }
+
+    // 3 llamada critica a visualizar siempre al final
+    visualizar();
+}
+
+uint32_t Logica_Juego::obtenerTiempoEspera() {
+    // calculo del tiempo de espera segun dificultad
+    uint32_t div_dif = (_confDificultad == OpcionDificultad::DIFICIL) ? 2 : 1;
+    // genera un tiempo aleatorio entre uno y tres segundos ajustado por dificultad
+    return (rand() % (2000 / div_dif)) + 1000;
+}
+
+void Logica_Juego::configurar(OpcionJugadores jug, OpcionModo modo, OpcionDificultad dif) {
+    _confJugadores = jug;
+    _confModo      = modo;
+    _confDificultad = dif;
+}
+
+
+void Logica_Juego::resetearJuegoCompleto() {
+    _puntuacion.resetear();
+    _estadoActual = EstadoJuego::ST_JUEGO_APAGADO;
+    _tickInicio = 0;
+    _tiempoAleatorio = 0;
+    _tiempoReaccion = 0;
+
+    // apagamos leds por seguridad
+    HAL_GPIO_WritePin(LED_AZUL_GPIO_Port, LED_AZUL_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_RESET);
+}
+
+
+void Logica_Juego::Buzzer_Beep(uint16_t duracion) {
+    // ejemplo simple de uso del buzzer
+    // hal_gpio_writepin buzzer en set
+    // hal_delay aqui bloquearia todo el juego
+    // mejor usar flags y tiempos si se quiere algo fino
+}
+
+void Logica_Juego::visualizar() {
+    if (_estadoActual == EstadoJuego::ST_JUEGO_APAGADO) return;
+
+    if (_redibujar) {
+        _dibujante.dibujarEstado(_estadoActual, _puntuacion, _confJugadores);
+        _redibujar = false;
+    }
+
+    if (_estadoActual == EstadoJuego::ST_JUEGO_INICIO) {
+        _pantalla->setEscala(1);
+        _pantalla->Escribir(40, 180, "PULSA PARA EMPEZAR", 0x07E0, 0, 0);
+    }
+
+    if (_estadoActual == EstadoJuego::ST_JUEGO_RONDA) {
+        _pantalla->setEscala(7);
+        _pantalla->Escribir(50, 90, "YA!", 0xFFFF, 0, 0);
+    }
+
+    if (_estadoActual == EstadoJuego::ST_MOSTRAR_RESULTADO_RONDA) {
+        char buf[32];
+        _pantalla->setEscala(4);
+        sprintf(buf, "%lu ms", _puntuacion.getUltimoTiempo());
+        _pantalla->Escribir(20, 80, buf, 0x07E0, 0, 0);
+    }
+}
+
+void Logica_Juego::iniciarRonda() {
+    // aqui se podrian reiniciar contadores o recursos
+    // ahora mismo todo esto se controla desde actualizar
 }
