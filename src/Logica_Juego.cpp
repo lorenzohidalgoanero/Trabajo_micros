@@ -2,47 +2,45 @@
 #include <stdlib.h>
 #include <cstdio>
 
-
-
-// tiempo_ms ya no se usa para medir el tiempo de reaccion
-// ahora se usa hal_gettick que devuelve los milisegundos desde que arranca el sistema
+// Referencia a variables globales del hardware (definidas en main.c)
+// Nota: "tiempo_ms" se ha dejado de utilizar para medir el tiempo de reacción. En su lugar
+// se emplea HAL_GetTick(), que devuelve el número de milisegundos desde el arranque del sistema.
 extern volatile uint16_t adc_ruido;
 
 Logica_Juego::Logica_Juego(Estilo_Pantalla* pantalla)
     : _pantalla(pantalla),
       _dibujante(pantalla) {
-    // inicializamos la maquina de estados y la puntuacion
+    // Inicializamos la máquina de estados y los registros de puntuación.
     resetearJuegoCompleto();
 }
 
 void Logica_Juego::actualizar(const Entradas& inputs) {
     uint32_t Tiempo = HAL_GetTick();
 
-    // 1 despertar o reinicio inicial
+    // 1. DESPERTAR / REINICIO
 	if (_estadoActual == EstadoJuego::ST_JUEGO_APAGADO) {
 		_puntuacion.resetear();
 		_estadoActual = EstadoJuego::ST_JUEGO_INICIO;
 		_redibujar = true;
-		_solicitudSalidaMenu = false, // aseguramos que arranca limpio
+		_solicitudSalidaMenu = false; // Aseguramos que empiece limpia
 		return;
 	}
 
-	// el hold global reinicia el juego en cualquier ronda
-	// y la restriccion no actua si estamos en el menu final
+	// HOLD GLOBAL: Reinicia el juego en cualquier ronda
+	// RESTRICCIÓN: Solo actúa si NO estamos en el menú de fin de juego
 	if (inputs.btn_PA0_Hold && _estadoActual != EstadoJuego::ST_JUEGO_FIN) {
 		_puntuacion.resetear();
 		_estadoActual = EstadoJuego::ST_JUEGO_INICIO;
 		_redibujar = true;
 		HAL_GPIO_WritePin(LED_AZUL_GPIO_Port, LED_AZUL_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_RESET);
-		return, // salimos para no seguir procesando estados
+		return; // Salimos para no procesar el switch en este ciclo
 	}
-    // este hold esta fuera del switch porque quiero poder reiniciar en cualquier ronda
-    // en el menu final en cambio el hold sirve para salir a la consola
+    //este hold esta fuera de los switch porque quiero que el hold me permita reiniciar el juego en cualquier ronda pero en ese ultimo menu de finjuego quiero que me saque al menu_maquina (la consola)
 
 
 
-    // 2 maquina de estados principal
+    // 2. MÁQUINA DE ESTADOS
     switch (_estadoActual) {
 
         case EstadoJuego::ST_JUEGO_INICIO:
@@ -50,7 +48,7 @@ void Logica_Juego::actualizar(const Entradas& inputs) {
             	_solicitudSalidaMenu = false;
                 _tickInicio = Tiempo;
                 _estadoActual = EstadoJuego::ST_TIEMPO_PREPARACION;
-                _redibujar = true, // fuerza el dibujo del fondo azul
+                _redibujar = true; // Dispara el dibujo del fondo azul
                 HAL_GPIO_WritePin(LED_AZUL_GPIO_Port, LED_AZUL_Pin, GPIO_PIN_SET);
             }
             break;
@@ -60,7 +58,7 @@ void Logica_Juego::actualizar(const Entradas& inputs) {
                 _tiempoAleatorio = obtenerTiempoEspera();
                 _tickInicio = Tiempo;
                 _estadoActual = EstadoJuego::ST_TIEMPO_DISPARO;
-                _redibujar = true, // pasamos a fondo negro
+                _redibujar = true; // Fondo negro
                 HAL_GPIO_WritePin(LED_AZUL_GPIO_Port, LED_AZUL_Pin, GPIO_PIN_RESET);
             }
             break;
@@ -69,24 +67,88 @@ void Logica_Juego::actualizar(const Entradas& inputs) {
             if (Tiempo - _tickInicio >= _tiempoAleatorio) {
                 _tickInicioDisparo = Tiempo;
                 _estadoActual = EstadoJuego::ST_JUEGO_RONDA;
-                _redibujar = true, // fondo rojo y aviso visual
+                _redibujar = true; // Fondo rojo + "YA!"
                 HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_SET);
             }
             break;
 
         case EstadoJuego::ST_JUEGO_RONDA:
-            if (inputs.btn_PA0_Click) {
-                _tiempoReaccion = Tiempo - _tickInicioDisparo;
-                _puntuacion.registrarRonda(_tiempoReaccion, _confModo, 1);
-                _tickInicio = Tiempo;
-                _estadoActual = EstadoJuego::ST_MOSTRAR_RESULTADO_RONDA;
-                _redibujar = true;
-                HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_RESET);
-            }
-            break;
+        	//Solo detecta el botón del jugador 1.
+        	       	if (_confJugadores == OpcionJugadores::UN_JUGADOR ){
+        	       		if (inputs.Boton_1) {
+        	       			_tiempoReaccion_1 = Tiempo - _tickInicioDisparo;
+        	       			_puntuacion.registrarRonda(_tiempoReaccion_1, _confModo, 1);
+        	       			_tickInicio = Tiempo;
+        	       			_estadoActual = EstadoJuego::ST_MOSTRAR_RESULTADO_RONDA;
+        	       			_redibujar = true;
+        	       			// --- NUEVO: Apagar LED y feedback sonoro corto ---
+        	                       Buzzer_Beep(50); // Pitido muy corto de 50ms
+               	       			HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_RESET);
+
+        	       		}
+        	       	}
+
+        	// MODO PARA 2 JUGADORES CON MEJOR_RESULTADO
+        	       	if (_confJugadores == OpcionJugadores::DOS_JUGADORES  && _confModo == OpcionModo::MEJOR_RESULTADO){
+        	       		if(flag_jugador_1 == 0 || flag_jugador_2 == 0){
+        	       			if (inputs.Boton_1 && flag_jugador_1 == 0) {
+        	       				_tiempoReaccion_1 = Tiempo - _tickInicioDisparo;
+        	       				_puntuacion.registrarRonda(_tiempoReaccion_1, _confModo, 1);
+        	       				_redibujar = true;
+        	       				flag_jugador_1 = 1;
+
+        	       				// --- NUEVO: feedback sonoro corto ---
+        	       	                        Buzzer_Beep(50); // Pitido muy corto de 50ms
+        	       	     	 }
+        	       			if (inputs.Boton_2 && flag_jugador_2 == 0) {
+        	       				_tiempoReaccion_2 = Tiempo - _tickInicioDisparo;
+        	       				_puntuacion.registrarRonda(_tiempoReaccion_2, _confModo, 2);
+        	       				_redibujar = true;
+        	       				flag_jugador_2 = 1;
+        	       				// --- NUEVO: feedback sonoro corto ---
+        	       	                        Buzzer_Beep(50); // Pitido muy corto de 50ms
+        	       	     	 }
+        	       		}
+        	       		if (flag_jugador_1 == 1 && flag_jugador_2 == 1){
+        	       			flag_jugador_1 = false;
+        	       			flag_jugador_2 = false;
+        	       			_tickInicio = Tiempo;
+        	       			_estadoActual = EstadoJuego::ST_MOSTRAR_RESULTADO_RONDA;
+        	       			HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_RESET);
+        	       		}
+        	       	 }
+
+        	       	// MODO PARA 2 JUGADORES CON CUENTA_ATRAS
+        	       	if (_confJugadores == OpcionJugadores::DOS_JUGADORES  && _confModo == OpcionModo::CUENTA_ATRAS){
+        	       			if (inputs.Boton_1 ) {
+        	       				_tiempoReaccion_1 = Tiempo - _tickInicioDisparo;
+        	       				_puntuacion.registrarRonda(_tiempoReaccion_1, _confModo, 1);
+        	       				_redibujar = true;
+            	       			_tickInicio = Tiempo;
+            	       			_estadoActual = EstadoJuego::ST_MOSTRAR_RESULTADO_RONDA;
+            	       			HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_RESET);
+        	       				// --- NUEVO: feedback sonoro corto ---
+        	       	                        Buzzer_Beep(50); // Pitido muy corto de 50ms
+        	       	     	 }
+        	       			else if (inputs.Boton_2 ) {
+        	       				_tiempoReaccion_2 = Tiempo - _tickInicioDisparo;
+        	       				_puntuacion.registrarRonda(_tiempoReaccion_2, _confModo, 2);
+        	       				_redibujar = true;
+            	       			_tickInicio = Tiempo;
+            	       			_estadoActual = EstadoJuego::ST_MOSTRAR_RESULTADO_RONDA;
+            	       			HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_RESET);
+
+        	       				// --- NUEVO: feedback sonoro corto ---
+        	       	                        Buzzer_Beep(50); // Pitido muy corto de 50ms
+        	       	     	 }
+
+        	       	 }
+        	       	break;
+
+
 
         case EstadoJuego::ST_MOSTRAR_RESULTADO_RONDA:
-            // dejamos el resultado mas tiempo para que se vea bien
+            // Aumentamos a 3 segundos para asegurar que el usuario vea el tiempo
             if (Tiempo - _tickInicio >= 3000) {
                 _redibujar = true;
                 if (_puntuacion.getRondaActual() > 3) {
@@ -112,14 +174,14 @@ void Logica_Juego::actualizar(const Entradas& inputs) {
             break;
     }
 
-    // 3 llamada critica a visualizar siempre al final
+    // 3. LLAMADA CRÍTICA A VISUALIZAR
     visualizar();
 }
 
 uint32_t Logica_Juego::obtenerTiempoEspera() {
-    // calculo del tiempo de espera segun dificultad
+    // Implementación basada en la dificultad seleccionada
     uint32_t div_dif = (_confDificultad == OpcionDificultad::DIFICIL) ? 2 : 1;
-    // genera un tiempo aleatorio entre uno y tres segundos ajustado por dificultad
+    // Genera un tiempo aleatorio entre 1s y 3s (ajustado por dificultad)
     return (rand() % (2000 / div_dif)) + 1000;
 }
 
@@ -135,19 +197,18 @@ void Logica_Juego::resetearJuegoCompleto() {
     _estadoActual = EstadoJuego::ST_JUEGO_APAGADO;
     _tickInicio = 0;
     _tiempoAleatorio = 0;
-    _tiempoReaccion = 0;
+    _tiempoReaccion_1 = 0;
+    _tiempoReaccion_2 = 0;
 
-    // apagamos leds por seguridad
     HAL_GPIO_WritePin(LED_AZUL_GPIO_Port, LED_AZUL_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(LED_ROJO_GPIO_Port, LED_ROJO_Pin, GPIO_PIN_RESET);
 }
 
 
 void Logica_Juego::Buzzer_Beep(uint16_t duracion) {
-    // ejemplo simple de uso del buzzer
-    // hal_gpio_writepin buzzer en set
-    // hal_delay aqui bloquearia todo el juego
-    // mejor usar flags y tiempos si se quiere algo fino
+    HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_SET);
+    HAL_Delay(duracion);
+    HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_RESET);
 }
 
 void Logica_Juego::visualizar() {
@@ -175,8 +236,7 @@ void Logica_Juego::visualizar() {
         _pantalla->Escribir(20, 80, buf, 0x07E0, 0, 0);
     }
 }
-
 void Logica_Juego::iniciarRonda() {
-    // aqui se podrian reiniciar contadores o recursos
-    // ahora mismo todo esto se controla desde actualizar
+    // Aquí podríamos inicializar contadores o recursos para una nueva ronda.
+    // Por ahora se gestiona en actualizar() al pasar a EstadoJuego::ACCION.
 }
