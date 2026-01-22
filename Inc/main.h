@@ -31,8 +31,11 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+
 #include <stdlib.h>
 extern volatile uint32_t tiempo_ms;
+
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -62,6 +65,12 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 
 /* USER CODE BEGIN Private defines */
+
+
+#define LED_AZUL_GPIO_Port  GPIOD					//para la logica del juego
+#define LED_AZUL_Pin        GPIO_PIN_15
+#define LED_ROJO_GPIO_Port  GPIOD
+#define LED_ROJO_Pin        GPIO_PIN_14
 
 /* USER CODE END Private defines */
 
