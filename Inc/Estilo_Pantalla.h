@@ -9,7 +9,7 @@ private:
     Driver_Pantalla* _tft;  // Puntero al driver de la pantalla
     uint8_t _escala;        // Tamaño de la letra
 
-    // Metodo privado auxiliar para dibujar un caracter simple sin efectos
+    // Método privado auxiliar para dibujar un caracter simple sin efectos
     void dibujarLetraBase(int x, int y, char c, uint16_t color);
 
 public:
