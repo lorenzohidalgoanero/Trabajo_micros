@@ -9,21 +9,21 @@ private:
     uint16_t _width;
     uint16_t _height;
 
-    // metodos privados internos del driver
+    // Métodos privados internos del driver
     void enviarComando(uint8_t cmd);
     void enviarDatos(uint8_t* data, size_t len);
     void setVentana(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
 
 public:
-    // constructor
+    // Constructor
     Driver_Pantalla(SPI_HandleTypeDef* hspi, uint16_t ancho, uint16_t alto);
 
-    // metodos para el usuario
+    // Métodos para el usuario
     void inicializar();
     void rellenarPantalla(uint16_t color);
 
-    // dibuja un cuadrado de color (bloque) en una posicion
-    // es para dibujar pixeles gordos
+    // Dibuja un cuadrado de color (bloque) en una posición.
+    // Es para dibujar píxeles gordos.
     void dibujarBloque(uint16_t x, uint16_t y, uint16_t color, uint8_t tamano);
 };
 
