@@ -4,43 +4,44 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// estados generales de la consola menu principal
+// Estados de la CONSOLA (Menú Principal)
 enum class EstadoMenu {
     APAGADO= 0,
-    SEL_JUGADORES,  // aqui eliges si juegan uno o dos
-    SEL_MODO,       // eliges si es cuenta atras o mejor resultado
-    SEL_DIFICULTAD, // facil medio o dificil
-    PANTALLA_CARGA, // pantalla previa antes de empezar a jugar
-    JUGANDO         // estado donde corre todo el juego
+    SEL_JUGADORES,  // 1 o 2
+    SEL_MODO,       // Cuenta atrás vs Mejor resultado
+    SEL_DIFICULTAD, // Facil, Medio, Dificil
+    PANTALLA_CARGA, // "Empezar"
+    JUGANDO         // Aquí corre la lógica del juego
 };
 
-// opciones que se pueden seleccionar en los menus
-enum class OpcionJugadores { UN_JUGADOR, DOS_JUGADORES };
-enum class OpcionModo      { CUENTA_ATRAS, MEJOR_RESULTADO };
-enum class OpcionDificultad{ FACIL, MEDIO, DIFICIL };
+// Opciones seleccionables
+enum class OpcionJugadores { UN_JUGADOR,FANTASMA_1, DOS_JUGADORES,FANTASMA_2 };
+enum class OpcionModo      { CUENTA_ATRAS,FANTASMA_3, MEJOR_RESULTADO,FANTASMA_4 };
+enum class OpcionDificultad{ FACIL,FANTASMA_5, MEDIO,FANTASMA_6, DIFICIL,FANTASMA_7 };
 
-// estructura para pasar las entradas a la logica sin liar el codigo con hal gpio
+// Estructura para pasarle los botones a la lógica sin ensuciar con HAL_GPIO
 struct Entradas {
-    bool btn_PA0_Click;   // pulsacion corta confirmar o encender
-    bool btn_PA0_Hold;    // pulsacion larga por si quieres usarla para encendido
-    bool btn_Atras;       // volver al menu anterior
-    bool btn_Salir;       // salida total vuelve al estado apagado
-    bool btn_ReiniciarJuego; // reinicia la partida sin salir del menu
-
-    // joystick por ahora simulado como banderas
+    bool btn_PA0_Click;   // Click simple (Confirmar / Encender)
+    bool btn_PA0_Hold;    // Mantener (Para encendido inicial si quieres)
+    bool btn_Atras;       // Volver al menú anterior
+    bool btn_Salir;       // Reset global (vuelve a APAGADO)
+    bool btn_ReiniciarJuego; // Reinicia solo el juego (estando dentro)
+    bool Boton_1;   // Click J1
+    bool Boton_2;   // Click J2
+    // Joystick (simulado por ahora como flags)
     bool joy_Arriba;
     bool joy_Abajo;
 };
 
-// estados internos del juego una vez arrancado
+
 enum class EstadoJuego {
-    ST_JUEGO_APAGADO,            // el juego no esta activo
-    ST_JUEGO_INICIO,             // inicio de partida
-    ST_TIEMPO_PREPARACION,       // tiempo previo antes del disparo
-    ST_TIEMPO_DISPARO,           // momento en el que se lanza el disparo
-    ST_JUEGO_RONDA,              // ronda en curso
-    ST_MOSTRAR_RESULTADO_RONDA,  // se muestran los resultados de la ronda
-    ST_JUEGO_FIN                 // fin de la partida
+    ST_JUEGO_APAGADO,
+    ST_JUEGO_INICIO,
+    ST_TIEMPO_PREPARACION,
+    ST_TIEMPO_DISPARO,
+    ST_JUEGO_RONDA,
+    ST_MOSTRAR_RESULTADO_RONDA,
+    ST_JUEGO_FIN
 };
 
 #endif
