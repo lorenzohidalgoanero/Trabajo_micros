@@ -63,12 +63,16 @@ Logica_Juego* juego;
 Maquina_Menu* consola;
 
 volatile bool irq_pa0_pressed = false;
+volatile bool Presiona_Jugador_1 = false;
+volatile bool Presiona_Jugador_2 = false;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_TIM2_Init(void);
 
 
 /* USER CODE BEGIN PFP */
@@ -83,8 +87,16 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	if (GPIO_Pin == GPIO_PIN_0) {
 	        irq_pa0_pressed = true;
 	    }
-}
+	if (GPIO_Pin == GPIO_PIN_6) {            //J1
+			Presiona_Jugador_1 = true;
+			    }
+	if (GPIO_Pin == GPIO_PIN_4) {            //J2
+			Presiona_Jugador_2 = true;
+			    }
 
+	}
+
+void Buzzer_Beep(uint16_t duracion_ms);
 
 /* USER CODE END 0 */
 
@@ -123,6 +135,8 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_SPI1_Init();
+  MX_ADC1_Init();
+  MX_TIM2_Init();
 
 
 
@@ -162,9 +176,8 @@ int main(void)
 
 
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
       /* Infinite loop */
+      /* USER CODE BEGIN WHILE */
       while (1) {
             memset(&inputs, 0, sizeof(Entradas));
 
@@ -202,7 +215,56 @@ int main(void)
 
                 // Delay de cortesía para que la pantalla respire tras el procesamiento
                 HAL_Delay(150);
-            } else {
+            }
+
+            //BOTON JUGADOR 1
+
+            if (Presiona_Jugador_1) {
+                // Antirrebote inicial
+                uint32_t Tiempo_While = HAL_GetTick();
+                while (HAL_GetTick() - Tiempo_While < 40);
+
+                if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_6) == GPIO_PIN_SET) {
+                    uint32_t t_inicio = HAL_GetTick();
+                    inputs.Boton_1 = true;
+
+                }
+
+                Presiona_Jugador_1 = false;
+                __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_6);
+
+                // Solo ahora que hemos soltado y decidido qué era (Click o Hold),
+                // procesamos la lógica UNA VEZ.
+                consola->actualizar(inputs);
+
+                // Delay de cortesía para que la pantalla respire tras el procesamiento
+                HAL_Delay(150);
+            }
+
+            //BOTON JUGADOR 2
+
+            if (Presiona_Jugador_2) {
+                // Antirrebote inicial
+                uint32_t Tiempo_While = HAL_GetTick();
+                while (HAL_GetTick() - Tiempo_While < 40);
+
+                if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_4) == GPIO_PIN_SET) {
+                    uint32_t t_inicio = HAL_GetTick();
+                    inputs.Boton_2 = true;
+
+                }
+
+                Presiona_Jugador_2 = false;
+                __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_4);
+
+                // Solo ahora que hemos soltado y decidido qué era (Click o Hold),
+                // procesamos la lógica UNA VEZ.
+                consola->actualizar(inputs);
+
+                // Delay de cortesía para que la pantalla respire tras el procesamiento
+                HAL_Delay(150);
+            }
+            else {
                 // Si no hay interrupción, el menú sigue su curso normal (animaciones, etc.)
                 consola->actualizar(inputs);
             }
@@ -211,8 +273,14 @@ int main(void)
             uint32_t Tiempo_While_Loop = HAL_GetTick();
             while (HAL_GetTick() - Tiempo_While_Loop < 10);
         }
-  /* USER CODE END 3 */
+
 }
+
+
+
+
+  /* USER CODE END 3 */
+
 
 /**
   * @brief System Clock Configuration
@@ -306,40 +374,166 @@ static void MX_SPI1_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
 
-  /* activar los relojes de los puertos A y B */
+  /* USER CODE END MX_GPIO_Init_1 */
+
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
-  /* --- PANTALLA (PB0 y PB1) --- */
-  /* PB0 = Reset Pantalla */
-  /* PB1 = DC Pantalla */
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1|BUZZER_Pin, GPIO_PIN_RESET);
 
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1, GPIO_PIN_RESET);
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, LED_ROJO_Pin|LED_AZUL_Pin, GPIO_PIN_RESET);
 
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP; // salida Push-Pull
+  /*Configure GPIO pin : BOTON_AZUL_Pin */
+  GPIO_InitStruct.Pin = BOTON_AZUL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(BOTON_AZUL_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB0 PB1 BUZZER_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|BUZZER_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : LED_ROJO_Pin LED_AZUL_Pin */
+  GPIO_InitStruct.Pin = LED_ROJO_Pin|LED_AZUL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /* el botón azul de la F411 Discovery es PA0 */
-
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING; // interrupción por flanco de subida
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;       // resistencia interna a tierra
+  /*Configure GPIO pins : PA10 PA11 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : BTN_J2_Pin BTON_J1_Pin */
+  GPIO_InitStruct.Pin = BTN_J2_Pin|BTON_J1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /* --- ACTIVAR NVIC (Interrupciones) --- */
-  /* la línea 0 atiende tanto a PA0 como a PB0, pero hemos configurado PA0 */
+  /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+
+  /* USER CODE END MX_GPIO_Init_2 */
+}
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_10;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
+}
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 83;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 999;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
 }
 
-/* USER CODE BEGIN 4 */
 
+
+/* USER CODE BEGIN 4 */
+void Buzzer_Beep(uint16_t duracion_ms)
+{
+    HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_SET);
+    HAL_Delay(duracion_ms);
+    HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_RESET);
+}
 /* USER CODE END 4 */
 
 /**
