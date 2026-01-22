@@ -16,22 +16,18 @@ public:
 
     void registrarRonda(uint32_t tr, OpcionModo modo, uint8_t ganador) {
         _ultimoTR = tr;
+
         if (modo == OpcionModo::CUENTA_ATRAS) {
-            // Modo reflejos: se asigna un punto fijo al jugador que pulsa primero
-            if (ganador == 1) {
-                _puntosJ1++;
-            } else {
-                _puntosJ2++;
-            }
-        } else {
-            // modo puntos, se suman puntos en funcion del tiempo de reaccion
-            uint16_t pts = calcularPuntos(tr);
-            if (ganador == 1) {
-                _puntosJ1 += pts;
-            } else {
-                _puntosJ2 += pts;
-            }
+            // Punto fijo al que pulsa primero
+            if (ganador == 1) _puntosJ1 += 100;
+            else if (ganador == 2) _puntosJ2 += 100;
         }
+        else if (modo == OpcionModo::MEJOR_RESULTADO) {
+            uint16_t pts = calcularPuntos(tr);
+            if (ganador == 1) _puntosJ1 += pts;
+            else if (ganador == 2) _puntosJ2 += pts;
+        }
+
         _rondaActual++;
     }
 
@@ -46,6 +42,7 @@ public:
 private:
     uint32_t _puntosJ1, _puntosJ2, _ultimoTR;
     uint8_t _rondaActual;
+    OpcionJugadores _confJugadores;
 
     uint16_t calcularPuntos(uint32_t tr) {
         if (tr < 200) return 100;
